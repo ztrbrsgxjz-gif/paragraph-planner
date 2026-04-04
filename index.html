@@ -18,7 +18,7 @@
   :root {
     --line-h: 32px;
     --pad-x: 16px;
-    --pad-top: 44px;
+    --pad-top: 8px;
     --pad-bot: 24px;
     --paper: #fdf8f0;
     --paper-dark: #f0e8d8;
@@ -182,50 +182,17 @@
     flex-shrink: 0;
   }
 
-  .card-header {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: var(--pad-top);
-    background: var(--header-bg);
-    border-radius: 4px 4px 0 0;
-    display: flex;
-    align-items: center;
-    padding: 0 10px;
-    gap: 8px;
-    z-index: 10;
-  }
-  .card-drag-handle {
-    cursor: grab;
-    padding: 4px 5px;
-    border-radius: 3px;
-    display: flex; flex-direction: column; gap: 3px;
-    touch-action: none;
-  }
-  .dot-row { display: flex; gap: 3px; }
-  .dot { width: 3px; height: 3px; background: rgba(255,255,255,0.5); border-radius: 50%; }
-  .card-num {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: rgba(255,255,255,0.55);
-    letter-spacing: 0.08em;
-  }
-  .card-del {
-    margin-left: auto;
-    background: none; border: none;
-    color: rgba(255,255,255,0.35);
-    cursor: pointer; font-size: 20px; line-height: 1;
-    padding: 4px 8px; border-radius: 3px;
-    touch-action: manipulation;
-  }
-  .card-del:active { color: #f26450; }
+
+  .para-card.card-dragging { opacity: 0.88; box-shadow: 0 8px 32px rgba(0,0,0,0.22); }
+  .para-card.card-will-delete { box-shadow: 0 0 0 2px #f09595, 0 2px 10px rgba(0,0,0,0.14); background: #fcebeb; }
 
   /* ---- RULED AREA ---- */
   .ruled-area {
     position: relative;
-    margin-top: var(--pad-top);
     overflow: hidden;
     cursor: crosshair;
     touch-action: none;
+    padding-top: 6px;
   }
   .ruled-lines { position: absolute; inset: 0; pointer-events: none; }
   .lorem-canvas { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
@@ -251,11 +218,11 @@
     line-height: calc(var(--line-h) - 4px);
     cursor: grab; z-index: 20;
     white-space: nowrap;
+    width: max-content;
     display: flex; align-items: center;
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
-    overflow: hidden;
   }
   /* continuation lines: left edge flush, slight indent marker */
   .chip-frag.cont {
@@ -274,7 +241,7 @@
     cursor: default; z-index: 40;
   }
 
-  .chip-text { pointer-events: none; overflow: hidden; }
+  .chip-text { pointer-events: none; }
 
   /* ---- CHIP INLINE EDIT ---- */
   .chip-inline-input {
@@ -413,7 +380,7 @@
 <script>
 const LOREM = "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum".split(" ");
 
-const LINE_H = 32, PAD_X = 16, PAD_TOP = 44, PAD_BOT = 24, MIN_LINES = 3;
+const LINE_H = 32, PAD_X = 16, PAD_TOP = 8, PAD_BOT = 24, MIN_LINES = 3;
 const CHIP_FONT = '14px Lora, Georgia, serif';
 const CHIP_PAD = 16; // 8px each side
 const CHIP_PAD_CONT = 14; // cont frags: 6px left + 8px right
@@ -468,8 +435,10 @@ function layoutChip(text, startLine, startX, cardInnerW) {
 
   const pushSeg = (avail, isCont) => {
     const segText = currentWords.join(' ');
-    const segW = measureText(segText) + (isCont ? CHIP_PAD_CONT : CHIP_PAD);
-    segments.push({ line, x: isCont ? PAD_X : x, width: Math.min(segW, avail + (isCont ? CHIP_PAD_CONT : CHIP_PAD)), text: segText, cont: isCont });
+    const measured = measureText(segText);
+    const pad = isCont ? CHIP_PAD_CONT : CHIP_PAD;
+    const segW = measured + pad + 6; // +6px buffer for subpixel rendering variance
+    segments.push({ line, x: isCont ? PAD_X : x, width: segW, text: segText, cont: isCont });
     line++;
     x = PAD_X;
     currentWords = [];
@@ -483,7 +452,7 @@ function layoutChip(text, startLine, startX, cardInnerW) {
     const w = words[i];
     const ww = measureText(w);
     const spaceW = currentWords.length ? measureText(' ') : 0;
-    if (currentWords.length > 0 && currentW + spaceW + ww > avail) {
+    if (currentWords.length > 0 && currentW + spaceW + ww > avail - 4) {
       // flush current line
       pushSeg(avail, isCont);
       avail = contAvail;
@@ -654,24 +623,49 @@ function buildCard(para,idx) {
   el.className='para-card'; el.dataset.pid=para.id;
   el.style.height=cardHeight(para.lines)+'px';
 
-  const hdr=document.createElement('div'); hdr.className='card-header';
-  const dh=document.createElement('div'); dh.className='card-drag-handle';
-  dh.innerHTML=`<div class="dot-row"><div class="dot"></div><div class="dot"></div></div><div class="dot-row"><div class="dot"></div><div class="dot"></div></div><div class="dot-row"><div class="dot"></div><div class="dot"></div></div>`;
-  dh.addEventListener('mousedown',e=>startReorder(e,para.id));
-  dh.addEventListener('touchstart',e=>startReorder(e,para.id),{passive:false});
-  const num=document.createElement('span'); num.className='card-num'; num.textContent=`¶ ${idx+1}`;
-  const del=document.createElement('button'); del.className='card-del'; del.textContent='×';
-  del.addEventListener('click',()=>{paragraphs=paragraphs.filter(p=>p.id!==para.id);renderAll();scheduleSave();});
-  hdr.append(dh,num,del); el.appendChild(hdr);
-
   const ruled=document.createElement('div'); ruled.className='ruled-area';
-  ruled.style.height=(cardHeight(para.lines)-PAD_TOP)+'px';
+  ruled.style.height=cardHeight(para.lines)+'px';
   ruled.appendChild(buildRuledSVG(para.lines));
 
   const loremLayer=document.createElement('div'); loremLayer.className='lorem-canvas'; loremLayer.dataset.pid=para.id;
   ruled.appendChild(loremLayer);
   const chipsLayer=document.createElement('div'); chipsLayer.className='chips-layer'; chipsLayer.dataset.pid=para.id;
   ruled.appendChild(chipsLayer);
+
+  // Long-press on background (not on a chip) → card drag
+  let cardPressTimer=null;
+  let cardPressPt=null;
+  ruled.addEventListener('touchstart',e=>{
+    if(e.target.closest('.chip-frag')||e.target.closest('.chip-input-wrap')||e.target.closest('.resize-handle')) return;
+    const t=e.touches[0];
+    cardPressPt={x:t.clientX,y:t.clientY};
+    cardPressTimer=setTimeout(()=>{
+      cardPressTimer=null;
+      startCardDrag(e,para.id,cardPressPt,el);
+    },400);
+  },{passive:true});
+  ruled.addEventListener('touchmove',e=>{
+    if(cardPressTimer){clearTimeout(cardPressTimer);cardPressTimer=null;}
+  },{passive:true});
+  ruled.addEventListener('touchend',e=>{
+    if(cardPressTimer){clearTimeout(cardPressTimer);cardPressTimer=null;}
+  },{passive:true});
+
+  // Mouse long-press on background
+  ruled.addEventListener('mousedown',e=>{
+    if(e.target.closest('.chip-frag')||e.target.closest('.chip-input-wrap')||e.target.closest('.resize-handle')) return;
+    cardPressPt={x:e.clientX,y:e.clientY};
+    cardPressTimer=setTimeout(()=>{
+      cardPressTimer=null;
+      startCardDrag(e,para.id,cardPressPt,el);
+    },300);
+  });
+  ruled.addEventListener('mouseup',()=>{if(cardPressTimer){clearTimeout(cardPressTimer);cardPressTimer=null;}});
+  ruled.addEventListener('mousemove',e=>{
+    if(!cardPressPt||!cardPressTimer) return;
+    const dx=e.clientX-cardPressPt.x,dy=e.clientY-cardPressPt.y;
+    if(Math.sqrt(dx*dx+dy*dy)>6){clearTimeout(cardPressTimer);cardPressTimer=null;}
+  });
 
   ruled.addEventListener('click',e=>{
     if(e.target.closest('.chip-frag')||e.target.closest('.chip-input-wrap')) return;
@@ -728,7 +722,6 @@ function createFragEl(chip,seg,isFirst,para,chipsLayer,loremLayer,ruled,cardEl) 
   el.dataset.pid=para.id;
   el.style.top=(seg.line*LINE_H+2)+'px';
   el.style.left=seg.x+'px';
-  el.style.width=seg.width+'px';
 
   const textSpan=document.createElement('span');
   textSpan.className='chip-text';
@@ -1062,35 +1055,58 @@ function onResizeMove(pt) {
   para.lines=newLines;
   const cardEl=canvas.querySelector(`.para-card[data-pid="${drag.resizePid}"]`); if(!cardEl) return;
   cardEl.style.height=cardHeight(newLines)+'px';
-  const ruled=cardEl.querySelector('.ruled-area'); if(ruled) ruled.style.height=(cardHeight(newLines)-PAD_TOP)+'px';
+  const ruled=cardEl.querySelector('.ruled-area'); if(ruled) ruled.style.height=cardHeight(newLines)+'px';
   const svgEl=cardEl.querySelector('.ruled-lines');
   if(svgEl){svgEl.innerHTML='';for(let l=0;l<newLines;l++){const y=(l+1)*LINE_H-0.5;const ln=document.createElementNS('http://www.w3.org/2000/svg','line');ln.setAttribute('x1','0');ln.setAttribute('y1',y);ln.setAttribute('x2','100%');ln.setAttribute('y2',y);ln.setAttribute('stroke','rgba(100,80,60,0.13)');ln.setAttribute('stroke-width','1');svgEl.appendChild(ln);}}
   const ll=cardEl.querySelector('.lorem-canvas'); if(ll) updateLorem(para,ll);
 }
-function startReorder(e,pid) {
-  e.preventDefault(); const pt=getPoint(e);
-  const cardEl=canvas.querySelector(`.para-card[data-pid="${pid}"]`); if(!cardEl) return;
+function startCardDrag(e,pid,pt,cardEl) {
+  if(drag) return;
+  commitEdit();
   const rect=cardEl.getBoundingClientRect();
   const ph=document.createElement('div'); ph.className='card-placeholder'; ph.style.height=cardEl.offsetHeight+'px';
-  drag={type:'reorder',reorderPid:pid,cardEl,placeholder:ph,lastPt:pt.y};
-  cardEl.style.cssText+=`position:fixed;width:${rect.width}px;left:${rect.left}px;top:${rect.top}px;z-index:500;opacity:0.92;`;
-  cardEl.after(ph); lockScroll(true);
+  drag={type:'reorder',reorderPid:pid,cardEl,placeholder:ph,lastPt:pt.y,offsetY:pt.y-rect.top};
+  cardEl.classList.add('card-dragging');
+  cardEl.style.cssText+=`position:fixed;width:${rect.width}px;left:${rect.left}px;top:${rect.top}px;z-index:500;`;
+  cardEl.after(ph);
+  deleteZone.classList.add('visible');
+  lockScroll(true);
+}
+function startReorder(e,pid) {
+  const pt=getPoint(e); e.preventDefault();
+  const cardEl=canvas.querySelector(`.para-card[data-pid="${pid}"]`); if(!cardEl) return;
+  startCardDrag(e,pid,pt,cardEl);
 }
 function onReorderMove(pt) {
   if(!drag||drag.type!=='reorder') return;
   drag.cardEl.style.top=(parseFloat(drag.cardEl.style.top)+pt.y-drag.lastPt)+'px'; drag.lastPt=pt.y;
-  const cards=[...canvas.querySelectorAll('.para-card:not([style*="position:fixed"])')];
-  let insertBefore=null;
-  for(const c of cards){const cr=c.getBoundingClientRect();if(pt.y<cr.top+cr.height/2){insertBefore=c;break;}}
-  if(insertBefore) canvas.insertBefore(drag.placeholder,insertBefore); else canvas.appendChild(drag.placeholder);
+  const overDelete=isOverDeleteZone(pt);
+  deleteZone.classList.toggle('hot',overDelete);
+  drag.cardEl.classList.toggle('card-will-delete',overDelete);
+  if(!overDelete){
+    const cards=[...canvas.querySelectorAll('.para-card:not([style*="position:fixed"])')];
+    let insertBefore=null;
+    for(const c of cards){const cr=c.getBoundingClientRect();if(pt.y<cr.top+cr.height/2){insertBefore=c;break;}}
+    if(insertBefore) canvas.insertBefore(drag.placeholder,insertBefore); else canvas.appendChild(drag.placeholder);
+  }
 }
-function onReorderEnd() {
+function onReorderEnd(pt) {
   if(!drag||drag.type!=='reorder') return;
   const d=drag; drag=null; lockScroll(false);
-  d.cardEl.style.position=d.cardEl.style.width=d.cardEl.style.left=d.cardEl.style.top=d.cardEl.style.zIndex=d.cardEl.style.opacity='';
+  deleteZone.classList.remove('visible','hot');
+  d.cardEl.classList.remove('card-dragging','card-will-delete');
+  d.cardEl.style.position=d.cardEl.style.width=d.cardEl.style.left=d.cardEl.style.top=d.cardEl.style.zIndex='';
+
+  if(isOverDeleteZone(pt)) {
+    d.placeholder.remove();
+    d.cardEl.remove();
+    paragraphs=paragraphs.filter(p=>p.id!==d.reorderPid);
+    renderAll(); scheduleSave(); return;
+  }
+
   d.placeholder.parentNode&&d.placeholder.parentNode.insertBefore(d.cardEl,d.placeholder); d.placeholder.remove();
   const newOrder=[]; canvas.querySelectorAll('.para-card').forEach(el=>{const p=getPara(parseInt(el.dataset.pid));if(p)newOrder.push(p);}); paragraphs=newOrder;
-  renderAll();scheduleSave();
+  renderAll(); scheduleSave();
 }
 
 function lockScroll(lock) { scrollLocked=lock; scrollArea.style.overflow=lock?'hidden':'auto'; }
@@ -1110,8 +1126,8 @@ function getCardAtPoint(pt) {
 // ---- GLOBAL EVENTS ----
 document.addEventListener('mousemove',e=>{const pt=getPoint(e);if(drag?.type==='chip')onChipDragMove(pt);else if(drag?.type==='resize')onResizeMove(pt);else if(drag?.type==='reorder')onReorderMove(pt);});
 document.addEventListener('touchmove',e=>{if(drag)e.preventDefault();const pt=getPoint(e);if(drag?.type==='chip')onChipDragMove(pt);else if(drag?.type==='resize')onResizeMove(pt);else if(drag?.type==='reorder')onReorderMove(pt);},{passive:false});
-document.addEventListener('mouseup',e=>{const pt=getPoint(e);if(drag?.type==='chip')onChipDragEnd(pt);else if(drag?.type==='resize'){drag=null;lockScroll(false);scheduleSave();}else if(drag?.type==='reorder')onReorderEnd();});
-document.addEventListener('touchend',e=>{const pt=getPoint(e);if(drag?.type==='chip')onChipDragEnd(pt);else if(drag?.type==='resize'){drag=null;lockScroll(false);scheduleSave();}else if(drag?.type==='reorder')onReorderEnd();});
+document.addEventListener('mouseup',e=>{const pt=getPoint(e);if(drag?.type==='chip')onChipDragEnd(pt);else if(drag?.type==='resize'){drag=null;lockScroll(false);scheduleSave();}else if(drag?.type==='reorder')onReorderEnd(pt);});
+document.addEventListener('touchend',e=>{const pt=getPoint(e);if(drag?.type==='chip')onChipDragEnd(pt);else if(drag?.type==='resize'){drag=null;lockScroll(false);scheduleSave();}else if(drag?.type==='reorder')onReorderEnd(pt);});
 document.addEventListener('click',e=>{if(!e.target.closest('.chip-frag')&&!e.target.closest('.chip-input-wrap'))commitEdit();});
 
 // ---- TOOLBAR ----
