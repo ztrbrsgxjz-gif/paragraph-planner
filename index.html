@@ -380,7 +380,7 @@
 <script>
 const LOREM = "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum".split(" ");
 
-const LINE_H = 32, PAD_X = 16, PAD_TOP = 8, PAD_BOT = 24, MIN_LINES = 3;
+const LINE_H = 32, PAD_X = 16, PAD_TOP = 8, PAD_BOT = 24, MIN_LINES = 1;
 const CHIP_FONT = '14px Lora, Georgia, serif';
 const CHIP_PAD = 16; // 8px each side
 const CHIP_PAD_CONT = 14; // cont frags: 6px left + 8px right
@@ -1050,7 +1050,8 @@ function startResize(e,pid,lines) {
 function onResizeMove(pt) {
   if(!drag||drag.type!=='resize') return;
   const para=getPara(drag.resizePid); if(!para) return;
-  const newLines=Math.max(MIN_LINES,drag.startLines+Math.round((pt.y-drag.startY)/LINE_H));
+  const delta = pt.y - drag.startY;
+  const newLines = Math.max(MIN_LINES, drag.startLines + Math.round(delta / (LINE_H * 0.6)));
   if(para.lines===newLines) return;
   para.lines=newLines;
   const cardEl=canvas.querySelector(`.para-card[data-pid="${drag.resizePid}"]`); if(!cardEl) return;
